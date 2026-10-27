@@ -1,0 +1,768 @@
+<div class="wrap nb">
+<header class="nb-title">
+  <p class="kicker">A quantum notebook · Qiskit · Qollab × IonQ hackathon</p>
+  <h1>Can you hear entanglement?</h1>
+  <p class="lede">This notebook turns quantum circuits into music: each circuit plays a song, beat by beat. Along the way it shows how to tell real <b>entanglement</b> apart from ordinary, classical <b>correlation</b>, and you can hear and test the difference yourself. Every circuit is computed by Qiskit. Turn your sound on and press ▶.</p>
+  <p class="lede"><b>Demo video:</b> <a href="https://youtu.be/vBk-Fj_Znjs" target="_blank" rel="noopener">watch the 3-minute walkthrough on YouTube</a></p>
+  <div class="legend-cells" aria-label="How to read this notebook">
+    <span><i class="k note"></i>Note: the explanation</span>
+    <span><i class="k ex"></i>Example: worked by hand</span>
+    <span><i class="k fig"></i>Figure: computed live</span>
+    <span><i class="k code"></i>In [n]: a circuit you can play</span>
+  </div>
+</header>
+
+<nav class="toc" aria-label="Contents">
+  <ol>
+    <li><a href="#s1">A song is a grid</a></li>
+    <li><a href="#s2">Qubits as a music box</a></li>
+    <li><a href="#s3">Superposition: every beat at once</a></li>
+    <li><a href="#s4">Entanglement makes the melody</a></li>
+    <li><a href="#s5">How much entanglement? Counting bits</a></li>
+    <li><a href="#s6">Correlation is not entanglement</a></li>
+    <li><a href="#s7">On a real quantum backend</a></li>
+    <li><a href="#s8">Time from entanglement and phase estimation (QPE)</a></li>
+    <li><a href="#s9">Songs as circuits</a></li>
+    <li><a href="#s10">What we showed</a></li>
+    <li><a href="#lab">The lab: build your own</a></li>
+  </ol>
+</nav>
+
+<section class="nbsec" aria-labelledby="s0h">
+  <h2 id="s0h">Objective</h2>
+  <div class="objective">
+  <div class="ncell note">
+    <p>The goal of this notebook is a clearer, more intuitive understanding of <b>entanglement</b>: what it is, and what it is not.</p>
+    <p>To get there, we turn quantum circuits into music. Some qubits act as a clock that counts the beats; others choose the note. With this music box we show four things:</p>
+    <ul>
+      <li><b>Superposition alone</b> plays every beat at once, but every beat sounds the same: a drone.</li>
+      <li><b>Stored in a quantum state, a melody needs entanglement</b> between the clock qubits and the note qubits. The more distinguishable the note patterns on different beats are, the greater the possible entanglement, and we measure it in bits.</li>
+      <li><b>A classical machine can play exactly the same melody with no entanglement at all.</b> That is ordinary correlation, like a pair of gloves split between two boxes. So the melody alone cannot prove entanglement.</li>
+      <li><b>A second way of measuring tells them apart.</b> A simple test, which also runs on real quantum backends, detects entanglement in the quantum music box and cannot be passed by the classical one.</li>
+    </ul>
+    <p>Then we connect the music box to a real quantum algorithm, <b>quantum phase estimation (QPE)</b>: the same clock-and-notes circuit is its first half, and a phase you cannot hear is read out exactly as a rhythm. Finally, real songs (Pachelbel's Canon, Beethoven's Für Elise) become circuits, with their exact gate costs.</p>
+  </div>
+  <figure class="ncell fig ov-fig"><div data-fig="overview"></div></figure>
+  </div>
+</section>
+
+<section class="nbsec" aria-labelledby="s1">
+  <h2 id="s1"><span class="num">1</span> A song is a grid</h2>
+  <div class="ncell note">
+    <p>Two everyday music words are all we need.</p>
+    <ul>
+      <li>A <b>beat</b> is a moment in time, one tick of the song's clock. Tap your foot to music: each tap is a beat.</li>
+      <li>A <b>note</b> is a pitch: how high or low a sound is. We use the scale <i>do re mi fa sol la ti do</i>.</li>
+    </ul>
+    <p>A song says which note plays on each beat. Draw beats as columns and notes as rows, light up one square per column, and you have a <b>piano roll</b>.</p>
+  </div>
+  <div class="ncell ex">
+    <p class="cap-t">Example: the song "do re mi fa"</p>
+    <div class="ex-split"><div>
+    <table class="data"><caption class="sr-only">The song do re mi fa</caption>
+      <thead><tr><th scope="col">Beat</th><th scope="col">1</th><th scope="col">2</th><th scope="col">3</th><th scope="col">4</th></tr></thead>
+      <tbody><tr><th scope="row">Note</th><td>do</td><td>re</td><td>mi</td><td>fa</td></tr></tbody></table>
+    <p>The note changes from beat to beat. That change is what makes it a melody and not one long hum.</p>
+    </div><div data-fig="piano"></div></div>
+  </div>
+</section>
+
+<section class="nbsec" aria-labelledby="s2">
+  <h2 id="s2"><span class="num">2</span> Qubits as a music box</h2>
+  <div class="ncell note">
+    <p>Our music box has two groups of qubits:</p>
+    <ul>
+      <li><b class="c-time">Time qubits</b> (t0, t1) count the beat in binary. Two qubits count to four.</li>
+      <li><b class="c-note">Note qubits</b> (n0, n1) pick the note. Two qubits give four notes.</li>
+    </ul>
+    <p>Measuring all four qubits gives one beat and one note: one sound. A quantum state gives each possible sound a probability, and the music box plays every sound at once, louder the more likely it is.</p>
+  </div>
+  <div class="ncell ex">
+    <p class="cap-t">Example: reading the qubits (as in Qiskit, qubit 0 is the right-hand bit)</p>
+    <div class="tables">
+      <table class="data"><caption>Time qubits t1 t0</caption><thead><tr><th scope="col">t1 t0</th><th scope="col">beat</th></tr></thead>
+        <tbody><tr><td>0 0</td><td>1</td></tr><tr><td>0 1</td><td>2</td></tr><tr><td>1 0</td><td>3</td></tr><tr><td>1 1</td><td>4</td></tr></tbody></table>
+      <table class="data"><caption>Note qubits n1 n0</caption><thead><tr><th scope="col">n1 n0</th><th scope="col">note</th></tr></thead>
+        <tbody><tr><td>0 0</td><td>do</td></tr><tr><td>0 1</td><td>re</td></tr><tr><td>1 0</td><td>mi</td></tr><tr><td>1 1</td><td>fa</td></tr></tbody></table>
+    </div>
+  </div>
+  <div class="ncell code" data-box="silence"></div>
+  <div class="ncell note">
+    <p>With no gates, every qubit stays 0: beat 1, note do, and nothing else. The clock never reaches beats 2 to 4, so they are silent.</p>
+  </div>
+</section>
+
+<section class="nbsec" aria-labelledby="s3">
+  <h2 id="s3"><span class="num">3</span> Superposition: every beat at once</h2>
+  <div class="ncell note">
+    <p>A <b>Hadamard gate</b> (H) puts a qubit into an equal <b>superposition</b> of 0 and 1. Put one on each time qubit and all four beats exist at once, each with probability ¼.</p>
+  </div>
+  <div class="ncell code" data-box="drone"></div>
+  <div class="ncell note">
+    <p>Every beat now plays, but every beat plays <b>do</b>. The note qubits do not know which beat it is. The result is a <b>drone</b>: one unchanging sound.</p>
+    <p>What if we put the note qubits in superposition too?</p>
+  </div>
+  <div class="ncell code" data-box="allnotes"></div>
+  <div class="ncell note takeaway">
+    <p>Now every beat plays a chord of all four notes, but it is still the <i>same</i> chord on every beat. <b>Superposition gives "everything at once", but no change from one beat to the next.</b> The entanglement readout stays at 0.</p>
+  </div>
+</section>
+
+<section class="nbsec" aria-labelledby="s4">
+  <h2 id="s4"><span class="num">4</span> Entanglement makes the melody</h2>
+  <div class="ncell note">
+    <p>To make the note depend on the beat, we need a gate that links them. A <b>controlled-X</b> gate says "if this time qubit is 1, flip that note qubit". In the diagram, the filled dot is the control and ⊕ is the flip.</p>
+  </div>
+  <div class="ncell ex">
+    <p class="cap-t">Example: two controlled-X gates, worked by hand. n0 copies t0; n1 copies t1.</p>
+    <table class="data"><caption class="sr-only">Working out do re mi fa</caption>
+      <thead><tr><th scope="col">beat</th><th scope="col">t1 t0</th><th scope="col">n1 n0 after the gates</th><th scope="col">note</th></tr></thead>
+      <tbody><tr><td>1</td><td>0 0</td><td>0 0</td><td>do</td></tr><tr><td>2</td><td>0 1</td><td>0 1</td><td>re</td></tr><tr><td>3</td><td>1 0</td><td>1 0</td><td>mi</td></tr><tr><td>4</td><td>1 1</td><td>1 1</td><td>fa</td></tr></tbody></table>
+  </div>
+  <div class="ncell code" data-box="doremifa"></div>
+  <div class="ncell note">
+    <p>A melody. A gate with two controls (a <b>Toffoli</b> gate) fires only when <i>both</i> time qubits are 1, so it can change a single beat:</p>
+  </div>
+  <div class="ncell code" data-box="dodorefa"></div>
+  <div class="ncell note">
+    <p>Here is a longer tune, with a <b>link-strength dial</b>. A controlled-X gate flips its note qubit completely, which is a half turn (180°). The dial makes every controlled gate turn the note qubit only part of the way: at 50% it turns 90°, so the note qubit ends up half flipped and half not. Each beat then plays a mix of its melody note and the drone note. At 0% nothing turns, there are no links, and you hear a drone. Slide it up and listen to the melody grow out of the drone as the entanglement readout climbs. (In Qiskit terms, each controlled X becomes a controlled RY rotation by the dial × 180°.)</p>
+  </div>
+  <div class="ncell code" data-box="dial"></div>
+  <div class="ncell note">
+    <p><b>Exact, or one shot at a time?</b> So far the music box plays the exact quantum state, which Qiskit computes. Each <b>shot</b> produces one measurement outcome: a single beat with a single note. A backend job collects many shots, and the song is built up from them. Use the <b>Shots</b> buttons below: with 10 shots most of the 16 beats are missing, with 100 you hear a rough sketch, and by 1,000 the tune is clear. The "% off" readout measures how far the measured song is from the exact one.</p>
+    <p>Pick 10 shots twice and you get two different handfuls of notes. Every set of shots is a fresh, random measurement: the quantum state fixes only the <b>probabilities</b> of the outcomes, not which outcomes you get. With many shots the randomness averages out, and the measured distribution approaches the same underlying probabilities: the same song.</p>
+  </div>
+  <div class="ncell code" data-box="odeshots"></div>
+  <div class="ncell note takeaway">
+    <p>The note now depends on the beat. In quantum terms, the time qubits and the note qubits are <b>entangled</b>: the state can no longer be split into "a time part" and "a note part". <b>A melody stored in a single quantum state (a pure state) needs entanglement whenever different beats carry different notes.</b> A drone or a chord does not.</p><p>But a classical machine can play exactly the same sequence of notes. That is section 6: how can two music boxes sound identical when only one contains entanglement?</p>
+  </div>
+</section>
+
+<section class="nbsec" aria-labelledby="s5">
+  <h2 id="s5"><span class="num">5</span> How much entanglement? Counting bits</h2>
+  <div class="ncell note">
+    <p>The readout under each circuit, "Entanglement, time ↔ notes", is the standard measure for a quantum state like ours, the <b>entanglement entropy</b>. In plain terms, it counts how many different note patterns the beats are linked to. Here is the recipe:</p>
+    <ol>
+      <li>For each beat, take its note pattern: which notes it plays, with their quantum amplitudes.</li>
+      <li>Make an <b>overlap table</b> comparing every pair of beats: about ¼ where two beats play the same pattern, 0 where their patterns have nothing in common. (Physicists call this the reduced density matrix of the time qubits.)</li>
+      <li>Find the table's <b>eigenvalues</b>. They add up to 1, like probabilities.</li>
+      <li>Entanglement = −Σ λ log₂ λ, measured in bits.</li>
+    </ol>
+  </div>
+  <div class="ncell fig">
+    <p class="cap-t">Figure: three circuits, the notes they play, and their overlap tables (rows and columns are beats 1 to 4)</p>
+    <div data-fig="entropy"></div>
+  </div>
+  <details class="fold"><summary>Read more: check the numbers by hand</summary>
+  <div class="ncell ex">
+    <p class="cap-t">Example: checking the numbers by hand</p>
+    <ul>
+      <li><b>Drone</b>: all four beats play the same pattern, so the table is one solid block. One eigenvalue, 1. Entanglement = −1·log₂1 = <b>0 bits</b>.</li>
+      <li><b>do re mi fa</b>: four different notes, nothing shared, so only the diagonal is filled. Eigenvalues ¼, ¼, ¼, ¼. Entanglement = −4 · ¼ · log₂¼ = <b>2 bits</b>, the most two time qubits can have.</li>
+      <li><b>do do re fa</b>: beats 1 and 2 share "do". Eigenvalues ½, ¼, ¼. Entanglement = ½·1 + ¼·2 + ¼·2 = <b>1.5 bits</b>.</li>
+    </ul>
+    <p>One bit is the entanglement of a single Bell pair, the textbook entangled pair of qubits. So "2 bits" means as much entanglement as two Bell pairs. In the code (<code>musicbox/engine.py</code>) this is two Qiskit calls: <code>partial_trace</code>, then <code>entropy</code>.</p>
+  </div>
+  </details>
+</section>
+
+<section class="nbsec" aria-labelledby="s6">
+  <h2 id="s6"><span class="num">6</span> Correlation is not entanglement</h2>
+  <div class="ncell note">
+    <p>In do re mi fa, the note always goes with the beat: beat 2 always comes with re. That is a <b>correlation</b>. But an ordinary machine can produce exactly the same correlation with no quantum physics at all:</p>
+  </div>
+  <div class="ncell ex">
+    <p class="cap-t">Example: a classical music box with a four-sided die inside</p>
+    <ol>
+      <li>Roll a four-sided die to pick a beat, say beat 3. Each beat comes up a quarter of the time.</li>
+      <li>Look up beat 3's note in a table: mi.</li>
+      <li>Play mi.</li>
+    </ol>
+    <p>Played many times, it gives beat 1 with do, beat 2 with re, beat 3 with mi and beat 4 with fa, exactly like the quantum circuit. The difference: the beat was <b>decided first</b>, like a fact written on paper, and the note simply followed. </p>
+    <p><b>How we build the classical copy.</b> A die-and-table machine has no qubits, so we cannot put it through a Hadamard lens directly. Instead we build a quantum circuit that behaves exactly like it:</p>
+    <ol>
+      <li>Start from the do re mi fa circuit.</li>
+      <li>Add two extra <b>recorder qubits</b>, r0 and r1 (the dashed wires when you pick "Classical copy" below).</li>
+      <li>Add one CNOT from t0 to r0 and one from t1 to r1. Each copies one bit of the beat number into the recorder, like someone writing down which beat it is.</li>
+      <li>Never measure or listen to the recorder. Measure only t0, t1, n0 and n1, normally or through the Hadamard lens.</li>
+    </ol>
+    <p>Because a record of the beat now exists, each run behaves as if the beat had been decided in advance, exactly like the die. The recorder becomes entangled with the music qubits. When we ignore it, the time and note registers form a <b>classical mixture</b>: still perfectly correlated, but no longer entangled with each other. (As a loose analogy, the recorder acts as if it secretly measured the beat. The full state, recorder included, is still entangled; physicists call this loss of quantum behaviour <b>decoherence</b>.)</p>
+  </div>
+  <div class="ncell code" data-box="copy"></div>
+  <div class="ncell note">
+    <p><b>How much does the beat tell us about the note?</b> We measure this with <b>mutual information</b>, in bits. If knowing the beat tells you exactly which of four equally likely notes will play, that is 2 bits of correlation. If knowing the beat tells you nothing about the note, that is 0 bits.</p>
+    <p>This is <i>not</i> the entanglement entropy of section 5. Entanglement entropy is computed from the quantum state itself, and it measures entanglement. Mutual information is computed from measurement results (a table of how often each beat came with each note), and it measures correlation, which classical systems have too. The classical copy has 2 bits of mutual information but 0 bits of entanglement. For our real circuits, measured normally, the two numbers happen to be equal, which is exactly why they are easy to confuse.</p>
+    <p>Switch between <b>Quantum circuit</b> and <b>Classical copy</b>: measured normally, they play exactly the same notes. Listening alone cannot tell them apart. So how can we ever know something quantum happened?</p>
+    <p><b>We measure a second way.</b> The <b>Hadamard lens</b> applies a Hadamard gate to every qubit just before measuring. That turns the question each qubit answers from "0 or 1?" into "+ or −?". In physics terms, the normal measurement is in the <b>Z basis</b> and the Hadamard lens measures in the <b>X basis</b> (reading 0 means |+⟩, reading 1 means |−⟩). The music box plays those answers on the same grid. It usually does not sound like the original song (do re mi fa happens to be a special case), and it does not need to. What we look at is whether <b>the beat still tells you something about the note</b>. We measure that as a correlation, in bits.</p>
+    <p>Switch on the Hadamard lens above. The real circuit keeps its correlation (2 bits). For this classical copy it drops to 0, because its beat was fixed before the note was played. Not every unentangled state loses <i>all</i> of its correlation in the Hadamard lens, though. That is why the test below adds the two correlations and compares the total with a limit, instead of asking for one of them to be zero.</p>
+  </div>
+  <div class="ncell fig">
+    <p class="cap-t">Figure: the three numbers each cell reports, what they ask, and how they are calculated</p>
+    <div class="three">
+      <div class="three-col">
+        <h3><span class="tn">1</span> Entanglement, time ↔ notes</h3>
+        <p class="three-q">What the state <i>is</i>: how inseparable are clock and notes?</p>
+        <ol class="flow">
+          <li>Qiskit's exact state (amplitudes)</li>
+          <li>Overlap table of the beats (section 5)</li>
+          <li>Its eigenvalues λ</li>
+          <li>Entropy: <b>S = −Σ λ log₂ λ</b></li>
+        </ol>
+        <p class="three-note">Not measured: computed from the state. A real backend never shows it to you. Valid only for pure states, so it is not used for the classical copy.</p>
+      </div>
+      <div class="three-col">
+        <h3><span class="tn">2</span> Correlation, normal measurement</h3>
+        <p class="three-q">What you <i>hear</i>: how much does the beat tell you about the note?</p>
+        <ol class="flow">
+          <li>Measure every qubit as 0/1 (Z basis)</li>
+          <li>Table of P(beat, note)</li>
+          <li>Row and column totals P(t), P(n)</li>
+          <li>Mutual information: <b>I = H(T) + H(N) − H(T,N)</b></li>
+        </ol>
+        <p class="three-note">Measurable from shots. A classical machine can produce it too.</p>
+      </div>
+      <div class="three-col">
+        <h3><span class="tn">3</span> Correlation, Hadamard lens</h3>
+        <p class="three-q">The same question from a second angle.</p>
+        <ol class="flow">
+          <li>Apply H to every qubit, then measure (X basis)</li>
+          <li>Table of P(beat, note) in +/− readings</li>
+          <li>Row and column totals</li>
+          <li>Mutual information, same formula</li>
+        </ol>
+        <p class="three-note">Measurable from shots. Survives only if the beat and notes were linked coherently.</p>
+      </div>
+    </div>
+    <div class="scroll" tabindex="0" role="region" aria-label="The three numbers for do re mi fa"><table class="data three-tab">
+      <caption>The three numbers for do re mi fa (cell above). Limit = 2 bits.</caption>
+      <thead><tr><th scope="col"></th><th scope="col">1. Entanglement</th><th scope="col">2. Normal</th><th scope="col">3. Hadamard</th><th scope="col">2 + 3 vs limit</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">Quantum circuit</th><td class="num">2</td><td class="num">2</td><td class="num">2</td><td><b class="yes">4 &gt; 2: entangled</b></td></tr>
+        <tr><th scope="row">Classical copy</th><td class="num">0</td><td class="num">2</td><td class="num">0</td><td><b class="no">2, not above: not certified</b></td></tr>
+      </tbody>
+    </table></div>
+    <p>Both boxes sound the same, because number 2 is the same. Number 1 tells them apart, but you cannot hear it or measure it directly. Number 3 is where the difference becomes measurable: adding 2 and 3 and comparing with the limit proves entanglement from measurements alone. (Number 1 equals number 2 only when every beat plays one plain note, as here. With chords or several voices on a beat, the normal correlation is smaller than the entanglement.)</p>
+  </div>
+  <details class="fold"><summary>Try it: the smallest case, a Bell pair in stereo</summary>
+  <div class="ncell ex">
+    <p class="cap-t">Example: the smallest case. One time qubit (t0) and one note qubit (n0), linked by a single controlled-X gate. This is a Bell pair. Press Hear: the left speaker plays t0, the right plays n0; agreeing shots sound as a clean octave (✓), disagreeing ones clash (✗).</p>
+    <div data-pair></div>
+  </div>
+  </details>
+  <div class="ncell note">
+    <p><b>The test</b> (Maccone, Bruß &amp; Macchiavello, 2015) is an <b>entanglement witness</b>: add the correlation from the normal measurement (Z basis) to the correlation from the Hadamard lens (X basis). Without entanglement (for any separable state, pure or mixed), the total can never go above a limit: the number of qubits in the smaller group (2 bits for our 2 time qubits). <b>If the total is above the limit, the circuit must be entangled.</b></p>
+  </div>
+  <div class="ncell fig">
+    <p class="cap-t">Figure: the two-lens test for six circuits. Bars past their dashed line certify entanglement.</p>
+    <div data-fig="test"></div>
+  </div>
+  <div class="ncell fig">
+    <p class="cap-t">What did we discover? do re mi fa, played by both music boxes</p>
+    <div data-fig="verdict"></div>
+    <p>Both boxes play the same notes. Only the entangled one keeps enough correlation across the two ways of measuring to go past the limit. That is the central result of this notebook.</p>
+  </div>
+  <details class="fold"><summary>Try it: Ode to Joy through both lenses</summary>
+  <div class="ncell note">
+    <p>A real song passes too, with a smaller margin than do re mi fa. Ode to Joy keeps 2.40 bits of correlation in the normal measurement and about 1.2 bits in the Hadamard lens, because it repeats notes: 3.58 against a limit of 3. Its classical copy keeps the same 2.40 bits normally and 0 in the Hadamard lens. On a backend, the test needs at least 1,280 shots (10 per possible outcome) before it gives any verdict (section 7).</p>
+  </div>
+  <div class="ncell code" data-box="odetest"></div>
+  </details>
+  <div class="ncell note takeaway">
+    <p><b>A classical system can reproduce ordinary correlations, and a computer can simulate entangled states, but a separable state cannot possess entanglement or pass this test.</b> do re mi fa (4 bits against a limit of 2), the Toffoli melody and Ode to Joy pass the test. The classical copy cannot: its total can at most reach the limit (do re mi fa's copy sits exactly on it, at 2). The test is one-way: passing proves entanglement, but failing does not disprove it. The Canon is entangled (3.37 bits) yet stays just under its limit.</p>
+  </div>
+  <details class="fold"><summary>A fair question: isn't this page classical too?</summary>
+  <div class="ncell note">
+    <p><b>But this page runs on an ordinary computer. Isn't that classical too?</b> Yes, and the difference matters. A classical computer can <b>simulate</b> an entangled state: it stores the state's numbers (amplitudes) and calculates what any measurement would give, including the entanglement and the two-lens test. Its memory bits are not themselves entangled, though; it is <i>describing</i> entanglement, not <i>having</i> it. In general, storing every amplitude of an n-qubit state takes 2<sup>n</sup> numbers, so the cost doubles with every qubit. (Not every entangled state is hard to simulate, but many large ones are, which is one reason quantum computers are useful.)</p>
+    <p>So the comparison in this section is not "classical computer versus quantum computer". It is between two quantum states that play the same melody: an entangled one, and an unentangled (separable) one, the classical copy, which behaves exactly like a machine that decided the beat in advance.</p>
+    <table class="data"><caption class="sr-only">Comparing the quantum music box with the classical copy</caption>
+      <thead><tr><th scope="col"></th><th scope="col">Quantum music box</th><th scope="col">Classical copy</th></tr></thead>
+      <tbody>
+        <tr><td>Plays the melody</td><td>yes</td><td>yes</td></tr>
+        <tr><td>Can be simulated on an ordinary computer</td><td>yes</td><td>yes</td></tr>
+        <tr><td>Time and note qubits entangled</td><td>yes</td><td>no</td></tr>
+        <tr><td>Can pass the two-lens test</td><td>yes</td><td>no</td></tr>
+      </tbody></table>
+    <p>A famous, stronger test of the same idea is <b>Bell's inequality</b> (in its CHSH form). It rules out every "decided in advance" explanation, even for devices you do not trust. For an entangled pair it can reach 2.83 (2√2), against a limit of 2 for any such explanation. Our two-lens test is simpler and needs only two ways of measuring. Like Bell's test, it can <i>certify</i> entanglement, but failing it does not prove a state is unentangled. Entanglement and Bell-inequality violation are not the same thing either: some noisy entangled states never violate a Bell inequality.</p>
+  </div>
+  </details>
+</section>
+
+<section class="nbsec" aria-labelledby="s7">
+  <h2 id="s7"><span class="num">7</span> On a real quantum backend</h2>
+  <div class="ncell note">
+    <p>So far Qiskit has computed the exact state. On a real backend we only get <b>shots</b>, one measurement at a time. There is also a catch: IonQ accepts <b>one job per run</b>, but the test needs two different measurements.</p>
+    <p>The trick: put <b>two copies of the song in one circuit</b>. Copy A is measured normally; copy B gets a Hadamard on every qubit first. One job, both lenses. do re mi fa uses 8 qubits this way, and Ode to Joy 14.</p>
+    <p>Shots also make correlations look bigger than they are, most of all when shots are spread over many possible outcomes. So we do two things. First, the correlations are corrected with a <b>bootstrap</b>, and the test says "entanglement detected" only when an approximate 95% lower bound clears the limit (by a small 0.02-bit margin). Second, we give <b>no verdict at all</b> unless there are at least 10 shots per possible outcome (160 for do re mi fa, 1,280 for Ode to Joy). Without that rule, 200 shots of the Canon came out "proven" in every one of 60 simulated runs, although its exact total is below its limit. With the rule, none did. In the same simulations, unentangled states were never wrongly detected, including states built to sit exactly on the limit with correlation in both lenses. These are <b>empirical guardrails</b>: they held for every case we tested, but they are not a mathematical guarantee for every circuit, and rigorous finite-shot certification would need its own validation.</p>
+  </div>
+  <div class="ncell code run" data-run></div>
+</section>
+
+<section class="nbsec" aria-labelledby="s8">
+  <h2 id="s8"><span class="num">8</span> Time from entanglement and phase estimation (QPE)</h2>
+  <div class="ncell note">
+    <p>Look again at what the circuit makes. It is <b>one frozen quantum state</b>: "beat 1 with do, and beat 2 with re, and beat 3 with mi, and beat 4 with fa", all at once. Nothing inside it moves. The melody only appears when you ask "what is the note <i>when the clock reads</i> 2?"</p>
+    <p>In 1983, Don Page and William Wootters proposed the same idea for the universe. Some theories of quantum gravity describe the universe with a state that never changes. They showed that if you split the universe into a <b>clock</b> and <b>everything else</b>, and the two are entangled, then everything else <i>seems</i> to change as the clock ticks. In this framework, apparent evolution emerges from correlations between a quantum clock and the system it describes, even though the joint state is stationary. The idea was later illustrated in a lab with entangled photons (Moreva et al., 2014).</p>
+    <p>Our music box is a small, playable version: the time qubits are the clock and the notes are "everything else". No entanglement means nothing changes from one tick to the next (the drone). We claim only the analogy: our clock is a register we choose to play in order.</p>
+  </div>
+  <div class="ncell note">
+    <p>We can also build the melody the way quantum algorithms do. <b>U</b> is the <b>shift operator</b>: a gate that steps every note up by one. Time qubit k controls U applied 2<sup>k</sup> times, so at beat t the notes have been stepped up t times. This is exactly the first half of <b>quantum phase estimation</b> (QPE).</p>
+  </div>
+  <details class="fold"><summary>Read more: the gates inside U</summary>
+  <div class="ncell fig">
+    <p class="cap-t">Figure: inside the U boxes. U adds 1 to the note number, wrapping round from fa to do, and it is built from ordinary gates.</p>
+    <div class="ex-split"><div>
+      <table class="data"><caption class="sr-only">What U does to each note</caption>
+        <thead><tr><th scope="col">before U</th><th scope="col">after U</th></tr></thead>
+        <tbody><tr><td>do |00⟩</td><td>re |01⟩</td></tr><tr><td>re |01⟩</td><td>mi |10⟩</td></tr><tr><td>mi |10⟩</td><td>fa |11⟩</td></tr><tr><td>fa |11⟩</td><td>do |00⟩</td></tr></tbody></table>
+    </div><div data-fig="ugates" class="ugates"></div></div>
+    <p><b>U on its own</b> is how you add 1 to a binary number: if the low bit n0 is 1, flip the high bit n1 (a CNOT, the "carry"), then flip n0 (an X). For example, re |01⟩ → carry flips n1 → |11⟩ → flip n0 → |10⟩ = mi.</p>
+    <p><b>Controlled-U</b> (on t0) adds 1 only when t0 is 1, so each gate gets t0 as an extra control: the CNOT becomes a Toffoli and the X becomes a CNOT. <b>Controlled-U²</b> (on t1) adds 2, which only flips the high bit, so it is a single CNOT from t1 to n1. Swapping the U boxes below for these gates gives exactly the same state.</p>
+  </div>
+  </details>
+  <div class="ncell code" data-box="qpe"></div>
+  <div class="ncell note">
+    <p>Some chords are left unchanged by U, apart from a hidden phase. These are U's <b>eigen-chords</b>. The circuit below is the same as the one above, with one difference: the notes do not start at do (|00⟩). Use the <b>Starting notes</b> buttons to pick which eigen-chord the circuit starts from; it opens on eigen-chord 1. Each one is made the same way: Hadamards on the two note qubits (on their own they give eigen-chord 0, the plain chord from section 3, which U leaves completely unchanged), then one phase gate on each note qubit:</p>
+    <details class="fold inner"><summary>Show the gates that prepare each eigen-chord</summary>
+    <table class="data"><caption class="sr-only">Gates that prepare each eigen-chord</caption>
+      <thead><tr><th scope="col">eigen-chord</th><th scope="col">gate on n0</th><th scope="col">gate on n1</th><th scope="col">U turns it by</th><th scope="col">QFT lens reads</th></tr></thead>
+      <tbody><tr><td>0</td><td>none</td><td>none</td><td>none</td><td>0</td></tr><tr><td>1</td><td>S†</td><td>Z</td><td>¼ turn</td><td>1</td></tr><tr><td>2</td><td>Z</td><td>none</td><td>½ turn</td><td>2</td></tr><tr><td>3</td><td>S</td><td>Z</td><td>¾ turn</td><td>3</td></tr></tbody></table>
+    </details>
+    <p>You cannot hear phases, so all four eigen-chords sound exactly the same. Switch on the QFT lens and each one gives a different, certain reading. The last button starts from plain do instead, which is not an eigen-chord: the reading is then random, because do is an equal mix of all four. Starting from it, every beat plays the same chord: no melody and 0 bits of entanglement. Yet the <b>QFT lens</b> reads the hidden phase exactly. Like the Hadamard lens, it is a different way of measuring: just before measuring, an inverse quantum Fourier transform (the QFT⁻¹ block that appears in the diagram) acts on the clock qubits. It works like a tuner, which listens to a sound over time and reports its frequency: here it reports how fast the hidden phase turns from beat to beat. Reading 1 of 4 means a quarter turn per beat, phase ¼. Eigen-chord 0 would read 0, and the melody above reads 0, 1, 2 or 3 at random, because a melody is a mix of all four eigen-chords. This inverse QFT is the second half of quantum phase estimation.</p>
+  </div>
+  <details class="fold"><summary>Read more: the four eigen-chords as arrows, with equations</summary>
+  <div class="ncell fig">
+    <p class="cap-t">Figure: U's four eigen-chords. Each arrow is the number in front of one note: right = 1, up = i, left = −1, down = −i (the number under each arrow). Every arrow has the same length, so every note is equally loud; only the direction, the phase, changes.</p>
+    <div class="scroll" tabindex="0" role="region" aria-label="Eigen-chord figure; scroll sideways if it is wide"><div data-fig="eigen"></div></div>
+    <p>All four chords sound exactly the same: do, re, mi and fa, each a quarter of the time. They differ only in how the arrows turn from one note to the next. In equations, with |do⟩ = |00⟩, |re⟩ = |01⟩, |mi⟩ = |10⟩ and |fa⟩ = |11⟩:</p>
+    <p class="eqn">eigen-chord v = ½ ( |do⟩ + (−i)<sup>v</sup> |re⟩ + (−1)<sup>v</sup> |mi⟩ + i<sup>v</sup> |fa⟩ )</p>
+    <p class="eqn">U · (eigen-chord v) = i<sup>v</sup> · (eigen-chord v)</p>
+    <p>The second line is what "eigen" means: U steps every note up by one, which would normally change the chord, but for these four chords it only multiplies the whole chord by a number, i<sup>v</sup>: a turn of v quarter turns (blue arrows). Eigen-chord 1, highlighted, is the one used below: ½ ( |do⟩ − i |re⟩ − |mi⟩ + i |fa⟩ ).</p>
+  </div>
+  </details>
+  <div class="ncell code" data-box="eigen"></div>
+  <div class="ncell note takeaway">
+    <p><b>The QFT lens turns phase into rhythm.</b> Without it, every eigen-chord sounds the same on every beat: the phase is inaudible. Through the lens, the music box plays the four clock readings in order, and the chord sounds only in the slot that matches its phase: slot 0 for eigen-chord 0, slot 1 for eigen-chord 1, and so on. The notes never change; the phase is heard as <i>when</i> the chord plays. (After the lens the slots are clock readings, not moments in time, and a single shot lands in just one of them; the full rhythm is what many shots add up to.)</p>
+  </div>
+</section>
+
+<section class="nbsec" aria-labelledby="s9">
+  <h2 id="s9"><span class="num">9</span> Songs as circuits</h2>
+  <div class="ncell note">
+    <p>Any tune can be written as a circuit, and how you write it matters. A <b>lookup table</b> uses one gate per beat, each controlled by every time qubit. An <b>algebraic</b> encoding writes each note bit as a short formula of the time bits (its Reed–Muller form), which often needs far fewer gates. Hardware cost is counted in CNOTs, the two-qubit gates the circuit compiles into.</p>
+  </div>
+  <details class="fold"><summary>Read more: what each song costs, in CNOTs</summary>
+  <div class="ncell fig">
+    <p class="cap-t">Figure: the cost of the same songs in different encodings</p>
+    <div data-cost></div>
+  </div>
+  </details>
+  <div class="ncell note">
+    <p>A third group of qubits can pick the <b>instrument</b>. Doubling a tune on two instruments needs no new entanglement. Giving each instrument its own part does: the note now depends on <i>when</i> and on <i>who</i>. Here, cello, viola, flute and violin play Pachelbel's Canon, each on different notes, from one 9-qubit state. Choosing which note and which instrument gets which binary label (the best of all 8! × 4! choices) cuts it from 968 to 630 CNOTs without changing a note.</p>
+  </div>
+  <div class="ncell code" data-box="canon"></div>
+  <div class="ncell note">
+    <p>Finally, a real piano piece, as written: the opening of Beethoven's <b>Für Elise</b> (1810), note for note, in sixteenth notes. It needs two new ideas:</p>
+    <ul>
+      <li><b>Real pitches.</b> The note qubits now point into a table of 15 piano keys, from E2 to E5, including the sharps (D♯, G♯) that give the piece its colour, plus one slot for a rest.</li>
+      <li><b>Two hands at once.</b> One more qubit picks the right hand or the left hand. In superposition, both hands play together from one state.</li>
+    </ul>
+    <p>Six time qubits count 64 sixteenths, enough for ten bars: the famous E–D♯–E–D♯ figure, the left-hand A–E–A and E–E–G♯ arpeggios, and the return to the start. That is 11 qubits in all.</p>
+    <details class="fold inner"><summary>Read more: how we made it four times cheaper</summary>
+    <p>A real song is expensive, so we used three tricks to shrink it. Each one leaves the music exactly the same:</p>
+    <ul>
+      <li><b>Write it algebraically.</b> Repeated patterns, like the left hand's two arpeggios, become shared terms in the formula instead of being written out beat by beat.</li>
+      <li><b>Choose the labels well.</b> Which piano key gets which 4-bit label is up to us, and it changes the formulas. A search over labellings found one where the patterns line up with simple formulas.</li>
+      <li><b>Lend the compiler two spare qubits.</b> Qiskit uses them as scratch space when it breaks gates with many controls into CNOTs. They stay idle, so the music is unchanged.</li>
+    </ul>
+    <p>Together these bring the opening from 9,942 CNOTs (lookup table, keys numbered low to high, no scratch qubits) down to <b>2,454</b>, a quarter of the original.</p>
+    </details>
+  </div>
+  <div class="ncell code" data-box="furelise"></div>
+  <div class="ncell note">
+    <p>Try the <b>Shots</b> buttons on Für Elise too. With 128 possible sounds (64 sixteenths, two hands), 100 shots leave most of the piece unheard, and even 1,000 shots get some notes too loud or too soft. The song turns into the real song only as the shots grow, which is one more reason real songs are hard for real quantum computers.</p>
+  </div>
+</section>
+
+<section class="nbsec" aria-labelledby="s10">
+  <h2 id="s10"><span class="num">10</span> What we showed</h2>
+  <div class="ncell note takeaway">
+    <ol>
+      <li><b>Superposition</b> alone gives every beat at once, but only a drone or a chord.</li>
+      <li><b>A melody stored in a pure quantum state requires entanglement</b> between time and notes, and we can count it in bits.</li>
+      <li><b>Correlation is not entanglement</b>: a classical copy plays the same notes, but cannot pass the two-lens test, which real melodies pass. You cannot hear the difference in the melody alone; you need a second measurement.</li>
+      <li>The test runs on a <b>real backend in one job</b>, with bias-corrected statistics and a minimum-shots rule.</li>
+      <li>The music box is a playable picture of <b>time from entanglement</b> and of quantum phase estimation.</li>
+      <li>Songs are circuits, and their <b>encoding sets their cost</b>.</li>
+    </ol>
+    <p><b>Limits.</b> The two-lens test proves entanglement but cannot rule it out. Our time-from-entanglement link is an analogy at the level of the state's structure. Long songs compile to hundreds or thousands of two-qubit gates (630 for the Canon, 2,454 for Für Elise): fine for simulators, far too noisy for today's hardware.</p>
+    <p class="refs"><b>References.</b> D. N. Page and W. K. Wootters, <i>Phys. Rev. D</i> 27, 2885 (1983). E. Moreva et al., <i>Phys. Rev. A</i> 89, 052122 (2014). L. Maccone, D. Bruß and C. Macchiavello, <i>Phys. Rev. Lett.</i> 114, 130401 (2015). E. R. Miranda (ed.), <i>Quantum Computer Music</i>, Springer (2022).</p>
+  </div>
+</section>
+
+<section class="nbsec" aria-labelledby="lab">
+  <h2 id="lab"><span class="num">★</span> The lab: build your own</h2>
+  <div class="ncell note">
+    <p>The full Music Box: a gate-by-gate editor, about 20 songs (including Old MacDonald with a full band), every lens, measurement collapse, and the tests above. Pick a tool, then click a cell, or use the keyboard (arrow keys move, Enter places a gate).</p>
+  </div>
+  <details class="labwrap">
+    <summary>Open the Music Box lab</summary>
+
+    <div class="lab">
+<div hidden><ol id="chapters"></ol><span id="ch-num"></span><h2 id="ch-title"></h2><p id="ch-point"></p><div id="ch-noticebox"><ul id="ch-notice"></ul></div><button id="ch-prev"></button><button id="ch-next"></button></div>
+<section class="panel" aria-labelledby="h-circ">
+    <div class="row" style="justify-content: space-between; margin-bottom: 10px">
+      <h2 id="h-circ" style="margin: 0">Circuit</h2>
+      <div class="row">
+        <label class="lbl" for="tq">Time qubits</label>
+        <select id="tq">
+          <option value="2">2 (4 beats)</option>
+          <option value="3">3 (8 beats)</option>
+          <option value="4">4 (16 beats)</option>
+        </select>
+        <label class="lbl" for="nq">Note qubits</label>
+        <select id="nq">
+          <option value="2">2 (do–fa)</option>
+          <option value="3">3 (do–do′)</option>
+        </select>
+        <label class="lbl" for="kq">Instrument qubits</label>
+        <select id="kq">
+          <option value="0">none (piano)</option>
+          <option value="2">2 (four instruments)</option>
+        </select>
+        <label class="lbl" for="pal">Ensemble</label>
+        <select id="pal">
+          <option value="band">Band: piano, guitar, flute, drums</option>
+          <option value="orch">Orchestra: cello, viola, flute, violin</option>
+        </select>
+        <label class="row" style="gap: 4px"
+          ><input type="checkbox" id="rest" /> <span class="lbl">Top note is a rest</span></label
+        >
+      </div>
+    </div>
+    <div class="row" style="margin-bottom: 10px">
+      <span class="lbl">Tool</span>
+      <div class="tools" id="tools" role="group" aria-label="Gate tools"></div>
+      <label class="lbl" for="ang" id="angl">Ry angle</label>
+      <input type="range" id="ang" min="15" max="180" step="15" value="90" aria-describedby="angv" /><span
+        id="angv"
+        style="font-family: var(--mono); font-size: 13px"
+        >90°</span
+      >
+    </div>
+    <div class="row" style="margin-bottom: 10px">
+      <label class="lbl" for="start">Notes start as</label
+      ><select id="start"></select>
+      <label class="lbl" for="step">U steps notes up by</label
+      ><select id="step">
+        <option value="1">1</option>
+        <option value="2">2</option>
+        <option value="3">3</option>
+      </select>
+    </div>
+    <div class="row" style="margin-bottom: 10px">
+      <label class="lbl" for="dial">Link strength</label
+      ><input type="range" id="dial" min="0" max="100" step="5" value="100" aria-describedby="dialv" /><span
+        id="dialv"
+        style="font-family: var(--mono); font-size: 13px; min-width: 4ch"
+        >100%</span
+      >
+      <span class="hint" style="margin: 0"
+        >Turns every controlled gate part of the way: 0% removes every link, 100% is the circuit as drawn. U
+        boxes stay at full strength.</span
+      >
+    </div>
+    <div class="scroll"><div class="circuit" id="circuit" aria-label="Circuit grid"></div></div>
+    <p class="hint">
+      Keyboard: Tab into the grid, move with the arrow keys, press Enter or Space to place the selected tool.
+      Pick a tool, then click a spot on a wire. Click again with the same tool to remove it. A column with
+      <b>●</b> (fires on 1) or <b>○</b> (fires on 0) applies its gates only when all its controls are
+      satisfied. <b>U</b> goes on a time wire: time qubit k steps the notes up 2<sup>k</sup> times, as in
+      phase estimation.
+    </p>
+    <div class="row" style="margin-top: 10px">
+      <button id="addcol">+ Column</button><button id="clear">Clear</button>
+      <span class="lbl" style="margin-left: 6px">Try</span>
+      <div class="presets" id="presets"></div>
+    </div>
+  </section>
+
+  <section class="grid2">
+    <div class="panel" aria-labelledby="h-play">
+      <div class="row" style="justify-content: space-between; margin-bottom: 10px">
+        <h2 id="h-play" style="margin: 0">What it plays</h2>
+        <div class="row">
+          <div class="seg" role="group" aria-label="Lens">
+            <button id="lensN" aria-pressed="true">Normal lens</button
+            ><button id="lensH" aria-pressed="false">Hadamard lens</button
+            ><button id="lensQ" aria-pressed="false">QFT lens</button>
+          </div>
+          <div class="seg" role="group" aria-label="Source">
+            <button id="modeQ" aria-pressed="true">Quantum</button
+            ><button id="modeC" aria-pressed="false">Classical copy</button>
+          </div>
+          <div class="seg" role="group" aria-label="View">
+            <button id="viewP" aria-pressed="true">Exact</button
+            ><button id="viewS" aria-pressed="false">64 shots</button
+            ><button id="viewB" aria-pressed="false" disabled>Backend shots</button>
+          </div>
+        </div>
+      </div>
+      <p class="sr-only">
+        The piano roll below is also written out as text, beat by beat, under the Play controls.
+      </p>
+      <div class="scroll" aria-hidden="true"><div class="roll" id="roll"></div></div>
+      <div class="legend" id="legend"></div>
+      <div class="row" style="margin-top: 12px">
+        <button class="primary" id="play">▶ Play</button><button id="stop">■ Stop</button>
+        <label class="lbl" for="bpm">Tempo</label
+        ><input type="range" id="bpm" min="60" max="220" step="10" value="120" /><span
+          id="bpmv"
+          style="font-family: var(--mono); font-size: 13px"
+          >120 bpm</span
+        >
+        <label class="row" style="gap: 4px"
+          ><input type="checkbox" id="loop" checked /> <span class="lbl">Loop</span></label
+        >
+      </div>
+      <div class="row" style="margin-top: 10px">
+        <button id="sweep">Sweep link 0 → 100%</button>
+        <label class="lbl" for="mreg">Measure</label
+        ><select id="mreg">
+          <option value="time">time register</option>
+          <option value="note">note register</option>
+          <option value="inst">instrument register</option>
+          <option value="clock">clock, QPE basis</option>
+        </select>
+        <button id="measure">Measure</button><button id="unmeasure" disabled>Undo measurements</button>
+      </div>
+      <p class="hint" id="mstatus" aria-live="polite"></p>
+      <div class="readout" id="readout"></div>
+    </div>
+    <div class="panel stats" aria-labelledby="h-q">
+      <h2 id="h-q" style="margin: 0">Quantum readout</h2>
+      <div class="stat">
+        <span class="lbl" id="entl">Entanglement, time ↔ notes</span><span class="v" id="ent">0.00 bits</span
+        ><span class="d" id="entd"></span>
+      </div>
+      <div class="stat" id="instbox" hidden>
+        <span class="lbl">Entanglement, instrument ↔ time and notes</span
+        ><span class="v" id="enti">0.00 bits</span><span class="d" id="entid"></span>
+      </div>
+      <div class="stat">
+        <span class="lbl">Correlation, normal lens</span><span class="v" id="cz">0.00 bits</span
+        ><span class="d">How much what you hear depends on the beat when you measure directly.</span>
+      </div>
+      <div class="stat">
+        <span class="lbl">Correlation, Hadamard lens</span><span class="v" id="cx">0.00 bits</span
+        ><span class="d"
+          >The classical copy of a song loses this correlation. The entanglement test adds both lenses and compares the total with a limit.</span
+        >
+      </div>
+      <div class="stat">
+        <span class="lbl">Entanglement test, two lenses</span><span class="v" id="proof">Not proven</span
+        ><span class="d" id="proofd"></span>
+      </div>
+      <div class="stat">
+        <span class="lbl">Phase estimation readout</span>
+        <div class="qpe" id="qpe"></div>
+        <span class="d"
+          >What the time register reads after an inverse QFT, as in QPE. Phase = reading ÷ number of
+          beats.</span
+        >
+      </div>
+      <div class="stat">
+        <span class="lbl">Circuit cost</span><span class="v" id="cost">0 CNOTs</span
+        ><span class="d" id="costd"></span>
+        <div class="row" style="margin-top: 6px">
+          <button id="exactcost" type="button">Count exactly with the Qiskit transpiler</button
+          ><span class="d" id="exactcostv" aria-live="polite"></span>
+        </div>
+      </div>
+      <div class="stat">
+        <span class="lbl">Engine</span><span class="engine" id="engine" aria-live="polite">starting…</span
+        ><span class="d"
+          >The state you hear is computed by Qiskit (musicbox/circuit.py and musicbox/engine.py). A small
+          JavaScript simulator gives instant feedback while Qiskit works and cross-checks every result.</span
+        >
+      </div>
+    </div>
+  </section>
+
+  <section class="panel" aria-labelledby="h-run">
+    <h2 id="h-run">Measure it on a quantum backend</h2>
+    <p class="explain" style="margin: 0">
+      Sends one job to the backend you picked in Qollab's Select QPU dialog. The job holds two copies of the
+      song: one measured as is, one through the Hadamard lens. That is all the entanglement test needs, so it
+      works on IonQ, which takes one job per run.
+    </p>
+    <div class="row" style="margin-top: 10px">
+      <label class="lbl" for="shots">Shots</label
+      ><select id="shots">
+        <option>200</option>
+        <option>1000</option><option selected>2000</option>
+        <option>4000</option>
+        <option>8000</option>
+      </select>
+      <button class="primary" id="runb" type="button">Run on the selected backend</button>
+      <span class="hint" id="runstatus" role="status" style="margin: 0"></span>
+    </div>
+    <div class="bres" id="bres" hidden>
+      <div class="stat">
+        <span class="lbl">Backend</span><span class="v" id="bname" style="font-size: 16px"></span
+        ><span class="d" id="bmeta"></span>
+      </div>
+      <div class="stat">
+        <span class="lbl">Correlation, normal lens</span><span class="v" id="bcz"></span
+        ><span class="d">from shots of copy A</span>
+      </div>
+      <div class="stat">
+        <span class="lbl">Correlation, Hadamard lens</span><span class="v" id="bcx"></span
+        ><span class="d">from shots of copy B</span>
+      </div>
+      <div class="stat">
+        <span class="lbl">Entanglement test</span><span class="v" id="bproof"></span
+        ><span class="d" id="bproofd"></span>
+      </div>
+    </div>
+    <p class="hint">
+      Then press "Backend shots" above the piano roll to hear what the backend measured. Shot-based
+      correlations are bias-corrected with a bootstrap. The test gives a verdict only with at least 10 shots
+      per possible outcome, and detects entanglement only when the approximate 95% lower bound clears the limit.
+    </p>
+  </section>
+
+  <section class="panel" aria-labelledby="h-bell">
+    <h2 id="h-bell">Correlation or entanglement? A two-qubit test</h2>
+    <p class="explain" style="margin: 0">
+      Pick a time qubit and a note qubit. The left column is the real circuit. The right column is the
+      classical copy, where the beat was picked and recorded before the note was played. Measured normally,
+      both pairs agree every time. Measured through the Hadamard lens (a Hadamard gate on both qubits first),
+      only the entangled pair keeps agreeing.
+    </p>
+    <div class="row" style="margin-top: 10px">
+      <label class="lbl" for="pa">Time qubit</label
+      ><select id="pa"></select>
+      <label class="lbl" for="pb">Partner qubit</label
+      ><select id="pb"></select>
+      <span class="hint" style="margin: 0">Try the "Bell pair" preset first.</span>
+    </div>
+    <div class="bellgrid">
+      <div class="bcol">
+        <h3>Quantum circuit</h3>
+        <div class="bcol" id="bq"></div>
+      </div>
+      <div class="bcol">
+        <h3>Classical copy (beat recorded in advance)</h3>
+        <div class="bcol" id="bc"></div>
+      </div>
+    </div>
+    <p class="hint">
+      Each Hear button plays 8 measurements as a duet: the time qubit in the left speaker, its partner in the
+      right. A 0 plays C and a 1 plays F♯, so when they agree you hear a clean octave (✓) and when they
+      disagree a harsh clash (✗). The test: unentangled pairs keep the two correlations at or below 1 bit in
+      total.
+    </p>
+  </section>
+
+  <section class="panel" aria-labelledby="h-build">
+    <h2 id="h-build">Write a melody, get its circuit</h2>
+    <div class="row" style="margin-bottom: 12px">
+      <label class="lbl" for="mtext">Type a melody</label>
+      <input id="mtext" type="text" value="C C C G A A G - E E D D C - - -" aria-describedby="mtexthint" />
+      <button class="primary" id="fromtext">Make circuit</button>
+    </div>
+    <p class="hint" id="mtexthint" style="margin-top: -6px">
+      Up to 16 notes: letters (C D E F G A B C′) or solfège (do re mi fa sol la ti do′), a dash for a rest.
+      Add an instrument with a colon, like <code>C:flute</code> or <code>E:drums</code>.
+    </p>
+    <div class="builder" id="builder"></div>
+    <div class="row" style="margin-top: 10px">
+      <label class="lbl" for="enc">Encoding</label
+      ><select id="enc">
+        <option value="lookup">Lookup table: one column per beat</option>
+        <option value="anf">Algebraic: fewest controls</option></select
+      ><button class="primary" id="build">Build circuit</button>
+    </div>
+    <p class="hint" id="buildinfo">
+      The lookup table writes each beat's note (and instrument) with gates controlled by every time qubit. The
+      algebraic encoding writes each output bit as an XOR of AND-terms of the time bits (its Reed–Muller
+      form), which often needs far fewer controls.
+    </p>
+  </section>
+
+  <section class="panel">
+    <details>
+      <summary>Qiskit code for this circuit</summary>
+      <p class="hint">
+        Qubits 0 up are time (qubit 0 is the lowest bit of the beat number), then note qubits, then instrument
+        qubits. Paste into Qiskit or Qollab.
+      </p>
+      <div class="row" style="margin: 8px 0">
+        <button id="copy">Copy code</button><span id="copied" class="hint" style="margin: 0"></span>
+      </div>
+      <pre id="code"></pre>
+    </details>
+  </section>
+
+  <section class="panel">
+    <h2 id="h-listen">What to listen for</h2>
+    <div class="explain">
+      <p>
+        <b>Superposition:</b> Hadamards on the time qubits make every beat exist at once. With nothing else,
+        each beat plays the same note: a drone.
+      </p>
+      <p>
+        <b>Entanglement:</b> a gate controlled by a time qubit and acting on a note qubit makes the note
+        depend on the beat. That dependence is the melody. In a pure quantum state, notes that change over
+        time need entanglement; chords and unison doubling do not. A classical copy can play the same notes.
+      </p>
+      <p>
+        <b>Loudness:</b> every outcome in a beat sounds at the same time, and its volume follows its amplitude
+        (the square root of its probability). A superposition of notes is heard as a chord. The rest slot is
+        silent.
+      </p>
+      <p>
+        <b>Instruments:</b> two instrument qubits choose piano, guitar (an octave lower), flute (an octave
+        higher) or drums (low notes are kick, then snare, hi-hat and tom). Switch the ensemble to Orchestra
+        for cello (two octaves lower), viola (an octave lower), flute (an octave higher) and violin. Doubling a
+        melody on two instruments needs no entanglement; switching instrument from bar to bar, or adding a
+        drum part that differs from the tune, does.
+      </p>
+      <p>
+        <b>Link strength:</b> slide it from 0% to 100% and hear the melody grow out of a drone as the
+        entanglement readout climbs.
+      </p>
+      <p>
+        <b>Classical copy:</b> extra "recorder" qubits record each beat number and are never read. Ignoring
+        the recorder, time and notes form a classical mixture: the same notes, no entanglement between them.
+        Switch to the Hadamard lens: the real melody keeps its correlation, the copy's falls to zero.
+      </p>
+      <p>
+        <b>Circuit cost:</b> what Qiskit compiles the circuit into, in CNOTs, counted gate by gate. Gates with
+        many controls are expensive, so how you encode a song matters. Toffoli-type gates (two controls) can
+        be built from controlled-√X gates with 5 two-qubit gates instead of 6 CNOTs.
+      </p>
+      <p>
+        <b>Entanglement test:</b> for any unentangled state, the correlations seen through the normal and
+        Hadamard lenses add up to at most log₂ of the smaller register size (Maccone, Bruß and Macchiavello,
+        2015). Going over that bound proves entanglement. Staying under it proves nothing either way.
+      </p>
+      <p>
+        <b>Measure:</b> measuring a register collapses the state. Measure the instruments in the full band and
+        one instrument is left; measure the clock in the QPE basis on "QPE: melody from U" and the tune
+        collapses onto a single eigen-chord.
+      </p>
+      <p>
+        <b>Phase estimation (QPE):</b> Hadamards on the time qubits, then U columns, build the state "at beat
+        t, the notes have been stepped up t times": the first half of QPE. The <b>eigen-chords</b> play the
+        same chord on every beat (no entanglement), yet the QFT lens reads each one's phase exactly. A melody
+        is a mixture of eigen-chords, so QPE reads a random one.
+      </p>
+    </div>
+  </section>
+    </div>
+  </details>
+</section>
+
+<footer class="attr">This effort is supported by Qollab &amp; IonQ. Built with Qiskit · MIT licence.</footer>
+</div>
